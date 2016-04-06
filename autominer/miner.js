@@ -45,6 +45,7 @@ module.exports = function (options) {
 
     // CHECK RATE
     this.parseRate = function(type, rate) {
+        //console.log(rate);
         rate = rate.split(' : ')[1];
         if (rate) rate = rate.split(' H/s ')[0];
         if (!isNaN(rate))
@@ -137,10 +138,11 @@ module.exports = function (options) {
         else if (degrees > 0) {
             if (that.load > 50) {
                 that.wantOC++;
-                if (that.wantOC > Math.min(4,that.hitHot)) {
+                if (that.wantOC > Math.min(5,that.hitHot)) {
                     freq_shift = degrees;   // up grade frequency
                     that.isStable = false;  // unstable
                     that.wantOC = 0;
+                    if (that.hitHot > 2) that.hitHot--;
                 }
             }
         }

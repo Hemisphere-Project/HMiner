@@ -1,4 +1,4 @@
 #!/bin/bash
 export DISPLAY=:0
 xhost +
-amdconfig --pplib-cmd "set fanspeed 0 100" --adapter=all
+amdconfig --pplib-cmd "set fanspeed 0 90" --adapter=all
