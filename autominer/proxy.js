@@ -12,7 +12,7 @@ module.exports = function ( command ) {
     this.miners = {};
 
     this.proxy = new Process( 'proxy', this.cmd, 500 );
-    //this.proxy.onData = function(t,d) {console.log('proxy: '+d)}
+    this.proxy.onData = function(t,d) {console.log('PROXY: '+d)}
 
     this.addMiner = function(options) {
         if (options.name && options.adapter !== undefined && options.device !== undefined) this.miners[options.name] = new Miner(options);
