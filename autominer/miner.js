@@ -1,8 +1,6 @@
 var Process = require('./process.js');
 var AmdProcess = require('./amd.js');
-
-const TEMP_IDEAL = 88; //87
-const TEMP_CRITICAL = 90; //90
+var moment = require('moment');
 
 const TIME_REFRESH  = 2;
 const TIME_CRITICAL = 40;
@@ -13,11 +11,14 @@ module.exports = function (options) {
     this.adapter = options.adapter;
     this.device = options.device;
 
-    this.minfreq = 600;
+    this.minfreq = 500;
     this.normfreq = 1000;
     this.maxfreq = options.maxfreq || 1050;
     this.currentfreq = this.minfreq;
     this.realfreq = 0;
+
+    this.maxtemp = options.maxtemp || 85;
+    this.criticaltemp = options.criticaltemp || 88;
 
     this.temp = 0;
     this.load = 0;
@@ -67,7 +68,7 @@ module.exports = function (options) {
             that.noTemp = 0;
 
             // critical HOT
-            if (that.temp >= TEMP_CRITICAL && that.currentfreq == that.minfreq) that.isCritical++;
+            if (that.temp >= that.criticaltemp && that.currentfreq == that.minfreq) that.isCritical++;
             else that.isCritical = 0;
 
             // HOT :: stop Miner
@@ -77,13 +78,13 @@ module.exports = function (options) {
             }
 
             // restart Miner
-            if (that.autoShutdown && !that.miner.isRunning && that.temp < TEMP_IDEAL-10) {
+            if (that.autoShutdown && !that.miner.isRunning && that.temp < that.maxtemp-10) {
                 that.start();
                 console.log(that.name+` : TEMP went down: restarting miner`);
             }
 
             // Adjust Freqeuncy
-            if (that.miner.isRunning) that.adjustFreq(TEMP_IDEAL-that.temp);
+            if (that.miner.isRunning) that.adjustFreq(that.maxtemp-that.temp);
 
         }
         else that.noTemp++;
@@ -125,7 +126,7 @@ module.exports = function (options) {
         // too HOT
         if (degrees < 0) {
             var mul = 5;
-            if (that.temp > TEMP_CRITICAL) mul=20;
+            if (that.temp > that.criticaltemp) mul=20;
             freq_shift = degrees*mul;             // down grade frequency
             if (that.isStable) that.hitHot++;   // unstable
             that.isStable = false;
@@ -171,7 +172,8 @@ module.exports = function (options) {
         that.amd_clock.send('aticonfig --adapter='+that.adapter+' --odgc');
 
         var rateAVG = Math.round(that.ratelist.reduce(function(a, b) { return a + b; })/(that.ratelist.length*100), 2);
-        console.log(Date()+' MINER '+that.name+': '+that.temp+'°C\t|\t'+that.currentfreq+' ('+that.realfreq+') Hz\t|\t'+that.load+' %\t|\t'+rateAVG+' MH/s');
+        var date = moment().format('YYYY-MM-DD HH:mm:ss,SSS');
+        console.log('MINER: '+date+' INFO '+that.name+':\t'+that.temp+'°C\t| '+that.currentfreq+' ('+that.realfreq+') Hz\t| '+that.load+' %\t| '+rateAVG+' MH/s');
     }, TIME_REFRESH*1000);
 
     /* INIT */
