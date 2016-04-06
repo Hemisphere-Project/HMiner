@@ -1,0 +1,3 @@
+# HMiner
+Automated Ether Miner 
+
