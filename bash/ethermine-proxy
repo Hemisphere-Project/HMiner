@@ -1,0 +1,3 @@
+#!/bin/bash
+ cd /home/mgr/Bakery/Mine/eth-proxy
+ python eth-proxy.py
