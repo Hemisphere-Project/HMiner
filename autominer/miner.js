@@ -173,7 +173,7 @@ module.exports = function (options) {
 
         var rateAVG = Math.round(that.ratelist.reduce(function(a, b) { return a + b; })/(that.ratelist.length*100), 2);
         var date = moment().format('YYYY-MM-DD HH:mm:ss,SSS');
-        console.log('MINER: '+date+' INFO '+that.name+':\t'+that.temp+'°C\t| '+that.currentfreq+' ('+that.realfreq+') Hz\t| '+that.load+' %\t| '+rateAVG+' MH/s');
+        console.log('MINER: '+date+' INFO '+that.name+': '+that.temp+'°C\t|\t'+that.currentfreq+' ('+that.realfreq+') Hz\t|\t'+that.load+' %\t|\t'+rateAVG+' MH/s');
     }, TIME_REFRESH*1000);
 
     /* INIT */
