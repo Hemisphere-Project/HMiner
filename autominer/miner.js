@@ -28,6 +28,8 @@ module.exports = function (options) {
     this.isCritical = 0;
     this.autoShutdown = false;
     this.wantOC = 0;
+    this.lowHR = 0;
+    this.noTemp = 0;
 
     this.miner = new Process( this.name, 'ethminer -G --farm-recheck 100 -F http://localhost:9000/'+this.name+' --opencl-device '+this.device, 500  );
 
@@ -41,17 +43,39 @@ module.exports = function (options) {
         this.miner.stop();
         if (!forSafety) forSafety = false;
         that.autoShutdown = forSafety;
+
+        that.ratelist = [0];
+        that.lowHR = 0;
+        that.noLoad = 0;
+        that.isCritical = 0;
+        that.noTemp = 0;
     }
 
     // CHECK RATE
     this.parseRate = function(type, rate) {
-        //console.log(rate);
-        rate = rate.split(' : ')[1];
-        if (rate) rate = rate.split(' H/s ')[0];
-        if (!isNaN(rate))
+        var hashrate = rate.split(' : ')[1];
+        if (hashrate) hashrate = hashrate.split(' H/s ')[0];
+        if (!isNaN(hashrate))
         {
-            that.ratelist.push(Math.round(rate/10000));
+            hashrate = Math.round(hashrate/10000);
+            that.ratelist.push(hashrate);
             if (that.ratelist.length > TIME_REFRESH*10) that.ratelist.shift();
+
+            if (hashrate < 500) that.lowHR++;  // < 5MH/s
+            else that.lowHR = 0;
+            if (that.lowHR >  10*60) {
+                console.log(that.name+` : LOW HR: restarting miner`);
+                that.stop(true);
+            }
+        }
+        else {
+            if (rate.indexOf("work package") > -1) ;
+            else if (rate.indexOf("workLoop")  > -1) ;
+            else if (rate.indexOf("Header-hash")  > -1) ;
+            else if (rate.indexOf("Seedhash")  > -1) ;
+            else if (rate.indexOf("Target")  > -1) ;
+            else if (rate.indexOf("Nonce:")  > -1) ;
+            else console.log(rate);
         }
     }
     this.miner.onData = that.parseRate;
