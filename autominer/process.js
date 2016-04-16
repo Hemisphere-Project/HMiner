@@ -9,11 +9,18 @@ module.exports = function (name, command, logsize) {
     this.cmd = command;
     this.proc = null;
     this.isRunning = false;
+    this.tokens = {};
     this.logger = Logger.add(this.name, this.logsize, false);
 
     this.onData = function(type, data) { }
 
-    this.start = function() {
+    this.start = function(token) 
+    {
+    	if (token) that.tokens[token] = true;
+    	if (that.isRunning) return;
+    	else for (var t in this.tokens)
+    		if (!this.tokens[t]) return;
+    
         var command = this.cmd.split(' ');
         this.proc = child_process.spawn(command.shift(), command);
         this.proc.stdin.setEncoding('utf-8');
@@ -39,7 +46,8 @@ module.exports = function (name, command, logsize) {
         this.proc.stdin.write(cmd+"\n");
     }
 
-    this.stop = function() {
+    this.stop = function(token) {
+    	if (token) that.tokens[token] = false;
         this.logger.log('event', `stopping process`);
         if (this.proc) this.proc.kill('SIGKILL');
     }

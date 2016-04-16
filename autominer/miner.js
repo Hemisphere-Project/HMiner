@@ -1,18 +1,18 @@
 var Process = require('./process.js');
 var AmdProcess = require('./amd.js');
-var moment = require('moment');
 
-const TIME_REFRESH  = 2;
+const TIME_REFRESH  = 1;
 const TIME_CRITICAL = 40;
 
-module.exports = function (options) {
+module.exports = function (options, parent) {
     var that = this;
     this.name = options.name;
     this.adapter = options.adapter;
     this.device = options.device;
+    
 
     this.minfreq = 500;
-    this.normfreq = 1000;
+    this.normfreq = 800;
     this.maxfreq = options.maxfreq || 1050;
     this.currentfreq = this.minfreq;
     this.realfreq = 0;
@@ -22,63 +22,34 @@ module.exports = function (options) {
 
     this.temp = 0;
     this.load = 0;
-    this.ratelist = [0];
 
     this.hitHot = 0;
     this.isCritical = 0;
     this.autoShutdown = false;
     this.wantOC = 0;
-    this.lowHR = 0;
     this.noTemp = 0;
 
-    this.miner = new Process( this.name, 'ethminer -G --farm-recheck 100 -F http://localhost:9000/'+this.name+' --opencl-device '+this.device, 500  );
+    this.parent = parent
+    this.miner = parent.minerprocess;
+    //this.miner = new Process( this.name, 'ethminer -G --farm-recheck 100 -F http://localhost:9000/'+this.name+' --opencl-device '+this.device, 500  );
 
 
     this.start = function() {
-        this.miner.start();
+        this.miner.start(that.name);
         that.autoShutdown = false;
     }
 
     this.stop = function(forSafety) {
-        this.miner.stop();
+        this.miner.stop(that.name);
         if (!forSafety) forSafety = false;
         that.autoShutdown = forSafety;
 
-        that.ratelist = [0];
-        that.lowHR = 0;
+        that.parent.ratelist = [0];
+        that.parent.lowHR = 0;
         that.noLoad = 0;
         that.isCritical = 0;
         that.noTemp = 0;
     }
-
-    // CHECK RATE
-    this.parseRate = function(type, rate) {
-        var hashrate = rate.split(' : ')[1];
-        if (hashrate) hashrate = hashrate.split(' H/s ')[0];
-        if (!isNaN(hashrate))
-        {
-            hashrate = Math.round(hashrate/10000);
-            that.ratelist.push(hashrate);
-            if (that.ratelist.length > TIME_REFRESH*10) that.ratelist.shift();
-
-            if (hashrate < 500) that.lowHR++;  // < 5MH/s
-            else that.lowHR = 0;
-            if (that.lowHR >  10*60) {
-                console.log(that.name+` : LOW HR: restarting miner`);
-                that.stop(true);
-            }
-        }
-        else {
-            if (rate.indexOf("work package") > -1) ;
-            else if (rate.indexOf("workLoop")  > -1) ;
-            else if (rate.indexOf("Header-hash")  > -1) ;
-            else if (rate.indexOf("Seedhash")  > -1) ;
-            else if (rate.indexOf("Target")  > -1) ;
-            else if (rate.indexOf("Nonce:")  > -1) ;
-            else console.log(rate);
-        }
-    }
-    this.miner.onData = that.parseRate;
 
     // CHECK TEMP
     this.parseTemp = function (type, temp) {
@@ -112,14 +83,14 @@ module.exports = function (options) {
             if (that.miner.isRunning) that.adjustFreq(that.maxtemp-that.temp);
 
         }
-        else that.noTemp++;
+        /*else that.noTemp++;
 
         // NO TEMP :: stop Miner
         if (that.noTemp > TIME_REFRESH*10)
         {
-            console.log(that.name+` : Can't read TEMP ! stopping miner..`);
+            console.log(that.name+" : Can't read TEMP on GPU ");
             that.stop(true);
-        }
+        }*/
     }
 
     // CHECK LOAD
@@ -196,10 +167,6 @@ module.exports = function (options) {
     this.temp_timer = setInterval( function() {
         that.amd_temp.send('aticonfig --adapter='+that.adapter+' --od-gettemperature');
         that.amd_clock.send('aticonfig --adapter='+that.adapter+' --odgc');
-
-        var rateAVG = Math.round(that.ratelist.reduce(function(a, b) { return a + b; })/(that.ratelist.length*100), 2);
-        var date = moment().format('YYYY-MM-DD HH:mm:ss,SSS');
-        console.log('MINER: '+date+' INFO '+that.name+': '+that.temp+'°C\t|\t'+that.currentfreq+' ('+that.realfreq+') Hz\t|\t'+that.load+' %\t|\t'+rateAVG+' MH/s');
     }, TIME_REFRESH*1000);
 
     /* INIT */
