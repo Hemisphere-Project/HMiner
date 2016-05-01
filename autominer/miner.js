@@ -10,10 +10,13 @@ module.exports = function (options, parent) {
     this.adapter = options.adapter;
     this.device = options.device;
     
-
+    // memory freq 
+    this.memfreq = options.memfreq || 1140;
+    
+    // core freq
     this.minfreq = 500;
     this.normfreq = 800;
-    this.maxfreq = options.maxfreq || 1050;
+    this.maxfreq = options.corefreq || 1050;
     this.currentfreq = this.minfreq;
     this.realfreq = 0;
 
@@ -44,11 +47,22 @@ module.exports = function (options, parent) {
         if (!forSafety) forSafety = false;
         that.autoShutdown = forSafety;
 
-        that.parent.ratelist = [0];
-        that.parent.lowHR = 0;
         that.noLoad = 0;
         that.isCritical = 0;
         that.noTemp = 0;
+    }
+    
+    this.update = function (options) {
+    	if (options.corefreq && this.maxfreq != options.corefreq) {
+    		this.maxfreq = options.corefreq || this.maxfreq;
+    		if (this.currenfreq > this.maxfreq) this.setFreq(this.maxfreq);
+    	}
+    	if (options.memfreq && this.memfreq != options.memfreq) {
+    		this.memfreq = options.memfreq;
+    		this.setFreq(this.currentfreq);
+    	}
+    	if (options.maxtemp) this.maxtemp = options.maxtemp;
+    	if (options.criticaltemp) this.criticaltemp = options.criticaltemp;
     }
 
     // CHECK TEMP
@@ -64,7 +78,7 @@ module.exports = function (options, parent) {
             that.noTemp = 0;
 
             // critical HOT
-            if (that.temp >= that.criticaltemp && that.currentfreq == that.minfreq) that.isCritical++;
+            if (that.temp >= that.criticaltemp && that.currentfreq == that.minfreq) that.isCritical += 1+that.temp-that.criticaltemp;
             else that.isCritical = 0;
 
             // HOT :: stop Miner
@@ -105,9 +119,9 @@ module.exports = function (options, parent) {
             that.load = load;
 
             // NO LOAD ?
-            if (that.load < 50) that.noLoad++;
+            if (that.load < 50 && that.miner.isRunning) that.noLoad++;
             else that.noLoad = 0;
-            if (that.noLoad > TIME_REFRESH*30) {
+            if (that.noLoad > 150/TIME_REFRESH) {
                 console.log(that.name+` : No LOAD detected, trying to restart miner..`);
                 that.stop(true);
             }
@@ -117,6 +131,7 @@ module.exports = function (options, parent) {
 
     this.adjustFreq = function(degrees) {
 
+	//return;
         var freq_shift = 0;
 
         // too HOT
@@ -157,7 +172,7 @@ module.exports = function (options, parent) {
 
     this.setFreq = function(freq) {
         that.currentfreq = freq;
-        this.amd_clock.send('aticonfig --adapter='+that.adapter+' --odsc '+that.currentfreq+','+that.currentfreq);
+        this.amd_clock.send('aticonfig --adapter='+that.adapter+' --odsc '+that.currentfreq+','+that.memfreq);
         //console.log(that.name+' set Clock to '+that.currentfreq);
     }
 
