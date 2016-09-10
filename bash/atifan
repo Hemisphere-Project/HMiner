@@ -1,0 +1,147 @@
+#!/bin/bash
+
+##
+# atifan.sh v1.2
+# by chort / splash_
+##
+
+# NB: Changing fan speed does not persist through reboots!
+
+# Which GPU device you are modifying. If you have only one GPU, it's 0,
+#  unless you have a multi-GPU card (5970, 6990) in which case you have
+#  to set each separately (once for DEVICE=0, once for DEVICE=1).
+# XXX Todo:     Make the script parameter-based (--device 2 --speed 70 etc)
+# XXX Todo: Match the function getall output with the actual device number (the actual device ID sometimes doesn't follow the query order), e.g (default adapter - Device 0 - is actually the second GPU)
+#
+#            $ sudo aticonfig --lsa
+#            * 0. 02:00.0 AMD Radeon HD 7900 Series
+#              1. 01:00.0 AMD Radeon HD 7900 Series
+#              2. 03:00.0 AMD Radeon HD 7900 Series
+#              3. 04:00.0 AMD Radeon HD 7900 Series
+#
+#            * - Default adapter
+# XXX Todo: exit if user tries to use device number higher than the number of devices present ()    
+
+DEFAULT_DEVICE=0    # this is the fallback for the default device. Change it if yours is not 0
+OPERATOR="$1"         
+DEVICE="$2"        
+VALUE="$3"           
+TOTALDEV=$((`sudo aticonfig --lsa | wc -l` - 2)) # total number of devices. Currently working on Catalyst 12.6
+#TOTALDEV=6
+
+function usage {
+        echo "Usage:  [get <dev#> | set <dev#> <speed%> | setall <speed%> | getall]"
+    echo ""
+    echo "get        Retrieve fanspeed and temperature from specific GPU. If no device is specified, default if device #0"         
+    echo "set        Set fanspeed of a specific GPU. If no device is specified, default if device #0"
+    echo "setall        Set the same value of fanspeed across all devices"
+    echo "getall        Get temperature and fanspeed of all devices"
+    echo ""
+    echo "dev#        Device Number. For first GPU dev=0, Second GPU dev=1, etc.."
+    echo "speed        Fanspeed in percentage (value from 10 to 99).    "
+    echo ""
+
+}
+
+function setValue () {
+# set value for one device.  = device and  = value
+
+        if [  -gt 9 2>/dev/null ] && [  -lt 100 ]
+        then
+                export DISPLAY=":0.${1}"
+                aticonfig --pplib-cmd "set fanspeed 0 " 1>/dev/null # remove output to /dev/null if you want the output of pplib
+                QUERY_RESULT=`aticonfig --pplib-cmd "get fanspeed 0" | grep "Result"`
+                echo "| DEVICE #${1}: ${QUERY_RESULT}"
+        else
+                # Only values from 10% to 100% are valid
+                usage
+                exit 1
+        fi
+}
+
+function getValue () {
+#prints info for one specific device. Accepts one parameter (device number)
+
+    if [ -z "" ]
+    then
+            exit 1
+    fi
+
+        export DISPLAY=:0.
+        QUERY_RESULT1=`aticonfig --pplib-cmd "get fanspeed 0" | grep Result | sed 's/Result\: //'`
+        QUERY_RESULT2=`aticonfig --adapter= --odgt | grep Sensor | sed 's/^[ \t]*//' | sed 's/Sensor 0\: //'`   # sed command just cosmetic to remove the whitespaces from beginning of line
+        echo "| DEVICE #${1}: ${QUERY_RESULT1} / ${QUERY_RESULT2}"
+}
+
+
+
+# if operation not defined (get, set or setall)
+if [ -z "$OPERATOR" ]
+then      
+    usage
+    exit 1
+fi
+
+if [ X"$OPERATOR" == "Xget" ]
+then
+        if [ -z "$DEVICE"  ]
+       then
+                DEVICE=$DEFAULT_DEVICE
+                echo "Using default device #${DEFAULT_DEVICE}"
+        fi
+
+
+    echo ""
+        echo "| Getting fanspeed and temperature of device #${DEVICE} ..."
+    getValue $DEVICE
+    echo ""
+fi
+
+if [ X"$OPERATOR" == "Xset" ]
+then
+    if [ -z "$VALUE"  ]    # if device# is not specified, then VALUE is empty ()
+    then        
+        DEVICE=$DEFAULT_DEVICE
+        VALUE=$2
+        echo "Using default device #${DEFAULT_DEVICE}"
+    fi
+
+    echo ""
+    echo "| Setting fanspeed of device #${DEVICE} to ${VALUE}% ..."
+    setValue $DEVICE $VALUE
+    echo ""
+fi
+
+if [ X"$OPERATOR" == "Xsetall" ]
+then
+VALUE="$2"
+
+        if [ -z "$VALUE"  ]
+        then    
+        usage
+        exit 1
+            
+        fi
+
+    echo ""
+        echo "| Setting fanspeed of all devices to ${VALUE}% ..."
+
+        for (( i = 0; i < $TOTALDEV  ; i++ ))
+        do
+        setValue $i $VALUE
+        done
+    echo ""
+
+fi
+
+if [ X"$OPERATOR" == "Xgetall" ]
+then
+        echo ""
+        echo "| Getting fanspeed and temperature of all devices ..."
+
+    for (( i = 0; i < $TOTALDEV  ; i++ ))
+        do
+        getValue $i    
+        done
+    echo ""
+fi

@@ -44,13 +44,22 @@ module.exports = function (name, command, logsize) {
     }
 
     this.send = function(cmd) {
-        this.proc.stdin.write(cmd+"\n");
+    	try {
+        	this.proc.stdin.write(cmd+"\n");
+	} catch (ex) {
+		console.log(ex);
+	}
     }
 
     this.stop = function(token) {
     	if (token) that.tokens[token] = false;
         //this.logger.log('event', `stopping process`);
-        if (this.proc) process.kill(-that.proc.pid); 
+        try {
+        	if (this.proc) process.kill(that.proc.pid); 
+	} catch (ex) {
+		console.log(ex);
+	}
+        
     }
 
 }

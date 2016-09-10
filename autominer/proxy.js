@@ -4,11 +4,10 @@ const child_process = require('child_process');
 var sleep = require('sleep');
 var moment = require('moment');
 
-const DISPLAY_REFRESH  = 3;
-const RECHECK  = 200;
-const CHCKS = 1000/RECHECK;
+const DISPLAY_REFRESH  = 6;
+const RECHECK  = 2000;
+const CHCKS = DISPLAY_REFRESH/RECHECK;
 
-var LOG_PROXY = 1;
 var LOG_MINER = 0; 
 var LOG_HMINER = 1; 
 
@@ -17,17 +16,17 @@ module.exports = function ( command ) {
     this.cmd = command;
     var that = this;
 
-    child_process.exec('pkill ethminer');
-    child_process.exec('fuser 9000/tcp -k');
+    child_process.exec('pkill qtminer');
+    //child_process.exec('pkill stdin-exec');
 
     this.miners = {};
-
-    this.proxy = new Process( 'proxy', this.cmd, 500 );
-    this.proxy.onData = function(t,d) { if (LOG_PROXY > 0) console.log('PROXY: '+d)}
-
-    this.minerprocess = new Process( 'miner', 'ethminer -G --farm-recheck '+RECHECK+' -F http://localhost:9000/rig6', 500  );
+    this.minerprocess = new Process( 'miner', './qtminer/qtminer.sh -s eu1.ethermine.org:4444 -u 0x2f44a56211dd1cf5afb3b913d993d36ab752862b.rig5qt -G  --cl-global-work 16384 --cl-local-work 128 ', 500  );
+    //this.minerprocess = new Process( 'miner', './qtminer/qtminer.sh -s eu1.ethermine.org:4444 -u 0x2f44a56211dd1cf5afb3b913d993d36ab752862b.rig6qt3 -G', 500  );
+    //this.minerprocess = new Process( 'miner', 'ethminer -G --farm-recheck '+RECHECK+' -F http://localhost:9000/rig6d --cl-global-work 16384 --cl-local-work 128', 500  );
+    
     this.ratelist = [0];
     this.lowHR = 0;
+    this.lowHRstop = 0;
     
     this.rate_timer = null;
     
@@ -42,14 +41,12 @@ module.exports = function ( command ) {
     }
     
     this.setlog = function(options) {
-    	if (options.ethminer !== undefined) LOG_MINER = options.ethminer;
-    	if (options.ethproxy !== undefined) LOG_PROXY = options.ethproxy;
+    	if (options.qtminer !== undefined) LOG_MINER = options.qtminer;
     	if (options.hminer !== undefined) LOG_HMINER = options.hminer;
     }
 
     this.start = function() {
     	console.log('PROXY : start');
-        this.proxy.start();
         this.minerprocess.start('main');
         
         this.lowHR = 0;
@@ -58,13 +55,18 @@ module.exports = function ( command ) {
 
     this.stop = function(restart) {
     	console.log('PROXY : stop');
-        this.proxy.stop();
         this.minerprocess.stop('main');
-        
+        //child_process.exec('pkill qtminer');
+        this.lowHRstop++;
         this.ratelist = [0];
         if (restart) setTimeout( function() { that.start() }, restart);
-        
         if (this.rate_timer) clearInterval(this.rate_timer);
+    }
+    
+    this.reboot = function () {
+    	console.log('PROXY : reboot');
+    	this.rebootprocess = new Process( 'reboot', 'reboot', 500  );
+    	this.rebootprocess.start();
     }
     
     // CHECK RATE
@@ -90,6 +92,11 @@ module.exports = function ( command ) {
             else if (rate.indexOf("Nonce:")  > -1) ;
             else if (rate.indexOf("Exception -32003")  > -1) ;
             else if (rate.indexOf("JSON-RPC problem")  > -1) ;
+
+			if (rate.indexOf("DAG")  > -1) {
+				that.lowHR = 0;
+        		that.lowHRstop = 0;
+			}
             
             if (LOG_MINER == 1) console.log(rate);
         }
@@ -100,15 +107,19 @@ module.exports = function ( command ) {
     this.rate_check = function() {
     	// LOG HASHRATE
         var rateAVG = Math.round(that.ratelist.reduce(function(a, b) { return a + b; })/(that.ratelist.length*100), 2);
-    	console.log('\t'+rateAVG+' MH/s');
+    	console.log('\tAverage: '+rateAVG+' MH/s - LowHR: '+that.lowHR+' - LowHRstop: '+that.lowHRstop+' - Miner running: '+that.minerprocess.isRunning);
     	
     	// CHECK HR
-    	if (rateAVG < 50 && that.minerprocess.isRunning) that.lowHR++;  // < 50MH/s
-        else that.lowHR = 0;
+    	if (rateAVG < 50) that.lowHR++;  // < 50MH/s
+        else {
+        	that.lowHR = 0;
+        	that.lowHRstop = 0;
+        }
         
-	if (that.lowHR > 120/DISPLAY_REFRESH) {
-		console.log('PROXY : LOW HR: restarting miner');
-		that.stop(5000);
+	if (that.lowHR > 70/DISPLAY_REFRESH) {
+		console.log('PROXY : LOW HR: restarting HW');
+		that.stop(10000);
+		if (that.lowHRstop > 2) that.reboot();
 	}	
     	
     	that.ratelist = [0];
